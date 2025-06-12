@@ -8,7 +8,7 @@ using Shared.Repositories;
 using System.Text.Json;
 using Xunit;
 
-namespace Shared.Tests.Repositories;
+namespace Integration.Tests.Database;
 
 public class PostRepositoryTests : IDisposable
 {

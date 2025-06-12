@@ -7,8 +7,9 @@ using System.IdentityModel.Tokens.Jwt;
 using Microsoft.IdentityModel.Tokens;
 using System.Security.Claims;
 using System.Text;
+using System.Collections.Generic;
 
-namespace Shared.Tests.Services;
+namespace Unit.Tests.Services;
 
 public class AuthServiceTests
 {
@@ -16,8 +17,17 @@ public class AuthServiceTests
 
     public AuthServiceTests()
     {
+        var inMemorySettings = new Dictionary<string, string> {
+            {"JWT:Key", "test_secret_key_12345678901234567890"},
+            {"JWT:Issuer", "DockerX-Test"},
+            {"JWT:Audience", "DockerX-Test"},
+            {"JWT:ExpirationInHours", "24"},
+            {"Admin:Username", "admin"},
+            {"Admin:Password", "admin123"}
+        };
+
         var configuration = new ConfigurationBuilder()
-            .AddJsonFile("appsettings.test.json")
+            .AddInMemoryCollection(inMemorySettings)
             .Build();
         _authService = new AuthService(configuration);
     }

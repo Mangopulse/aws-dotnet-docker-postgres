@@ -9,5 +9,99 @@ alwaysApply: true
 4. Do not write logic in web controllers
 5. Always apply TDD and write tests before writing code, tests are the truth dont change tests unles verification with me
 6. Dont use repositories in web apis or tests only use services in web apis and tests
+
+
+# 🤖 AI Development Guidelines for DockerX
+
+This document outlines strict rules and architecture principles that **must be followed** by any AI agent contributing to the DockerX platform. All tasks, code, tests, and documentation must comply with the following standards.
+
+---
+
+## 🔒 Rule Set
+
+### 1. Architecture Principles (Mandatory)
+- ✅ Use **OOP** and follow **SOLID** principles.
+- ✅ Enforce **SRP** (Single Responsibility Principle) and **SOC** (Separation of Concerns).
+- ✅ Follow **DRY** (Don't Repeat Yourself) in all implementations.
+- ✅ Write **clean code**: readable, intention-revealing, and minimal.
+- ✅ Apply **Design Patterns** where appropriate (Factory, Strategy, Decorator, etc.).
+- ✅ Prioritize **scalability**, **performance**, and **security**.
+
+---
+
+### 2. Database & ORM
+- ❌ Do **NOT** use Entity Framework Core.
+- ✅ Use **Dapper** for all database access.
+- ✅ Use **parameterized queries** to prevent SQL injection.
+- ✅ Add **indexes** to frequently queried columns (e.g., `PostId`, `Slug`, `MediaId`).
+
+---
+
+### 3. Code Placement Rules
+- ❌ Do **NOT** write **any business logic** inside web controllers.
+- ✅ Controllers may only:
+  - Validate requests
+  - Call services
+  - Return results
+- ✅ Place all business logic inside **Service classes**.
+
+---
+
+### 4. Service Access Rules
+- ❌ Do **NOT** call repository classes directly in:
+  - Controllers
+  - Test projects
+- ✅ Only call **service interfaces** (e.g., `IPostService`) in APIs and tests.
+
+---
+
+### 5. Testing Rules (TDD First)
+- ✅ Always write **failing tests before writing any implementation code**.
+- ✅ Follow **Test-Driven Development (TDD)** strictly.
+- ✅ Use `xUnit` and mocking libraries.
+- ✅ All services must be covered by **unit tests** and **integration tests**.
+- ❌ Do **NOT** change any test unless verified and approved by the user.
+- ✅ Tests are treated as the **source of truth**.
+
+---
+
+### 6. Docker & Config
+- ✅ All services must be containerized with **Docker**.
+- ✅ Use `docker-compose` for orchestration.
+- ✅ Add health check endpoints to all APIs.
+- ✅ Configuration must be **environment-based** and **externally configurable** (e.g., `config.json`, environment variables).
+
+---
+
+### 7. Security Practices
+- ✅ Use **JWT Authentication**.
+- ✅ Validate all incoming data.
+- ✅ Enforce **CORS** with whitelisted origins.
+- ✅ Protect file uploads (limit type and size).
+- ✅ Use HTTPS endpoints in production.
+- ✅ No secrets should be hardcoded.
+
+---
+
+### 8. Performance & Caching
+- ✅ Use **caching mechanisms** (e.g., Redis or MemoryCache) for:
+  - Frequently read endpoints (e.g., paginated post listing)
+  - Expensive image processing results
+- ✅ Ensure proper **cache invalidation** when related data changes.
+
+---
+
+### 9. Deployment and Observability
+- ✅ All services must include:
+  - `/health` endpoint
+  - Docker readiness
+  - Logging for key operations
+- ✅ Prepare for future Kubernetes deployment.
+
+---
+
+## ✅ Naming Conventions & File Structure
+
+
  
 

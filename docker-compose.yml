@@ -17,6 +17,48 @@ services:
       timeout: 5s
       retries: 5
 
+  adminapi:
+    build:
+      context: .
+      dockerfile: src/AdminApi/Dockerfile
+    environment:
+      - ASPNETCORE_ENVIRONMENT=Development
+      - ASPNETCORE_URLS=http://+:5000
+      - ConnectionStrings__DefaultConnection=Host=db;Port=5432;Database=dockerx;Username=postgres;Password=postgres
+    ports:
+      - "5000:5000"
+    depends_on:
+      db:
+        condition: service_healthy
+
+  adminfront:
+    build:
+      context: ./src/admin
+      dockerfile: Dockerfile
+    environment:
+      - NEXT_PUBLIC_API_URL=http://adminapi:5000
+    ports:
+      - "5001:3000"
+    depends_on:
+      - adminapi
+
+  frontapi:
+    build:
+      context: .
+      dockerfile: src/FrontApi/Dockerfile
+    environment:
+      - ASPNETCORE_ENVIRONMENT=Development
+      - ASPNETCORE_URLS=http://+:5004
+      - ConnectionStrings__DefaultConnection=Host=db;Port=5432;Database=dockerx;Username=postgres;Password=postgres
+      - MediaApiUrl=http://media:5003
+    ports:
+      - "5004:5004"
+    depends_on:
+      db:
+        condition: service_healthy
+      media:
+        condition: service_started
+
   upload:
     build:
       context: .
@@ -43,6 +85,7 @@ services:
       - ASPNETCORE_ENVIRONMENT=Development
       - ASPNETCORE_URLS=http://+:5003
       - ConnectionStrings__DefaultConnection=Host=db;Port=5432;Database=dockerx;Username=postgres;Password=postgres
+      - UploadApiUrl=http://upload:5002
     ports:
       - "5003:5003"
     volumes:
@@ -50,6 +93,8 @@ services:
     depends_on:
       db:
         condition: service_healthy
+      upload:
+        condition: service_started
 
 volumes:
   postgres_data:
