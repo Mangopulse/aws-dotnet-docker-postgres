@@ -1,10 +1,37 @@
 {
   "ConnectionStrings": {
-    "DefaultConnection": "Host=localhost;Database=dockerx;Username=postgres;Password=postgres"
+    "DefaultConnection": "Host=localhost;Port=5432;Database=dockerx_db;Username=postgres;Password=postgres123",
+    "AzureStorage": "DefaultEndpointsProtocol=https;AccountName=youraccount;AccountKey=yourkey;EndpointSuffix=core.windows.net"
+  },
+  "JWT": {
+    "Key": "supersecretkey12345678901234567890",
+    "Issuer": "DockerX",
+    "Audience": "DockerX",
+    "ExpirationInHours": 24
   },
   "AWS": {
     "Region": "us-east-1",
-    "BucketName": "dockerx-media"
+    "S3": {
+      "BucketName": "dockerx-media-bucket"
+    }
+  },
+  "Services": {
+    "FrontApi": "http://localhost:5000",
+    "AdminApi": "http://localhost:5001", 
+    "Upload": "http://localhost:5002",
+    "Media": "http://localhost:5003",
+    "Front": "http://localhost:3000",
+    "Admin": "http://localhost:3001"
+  },
+  "StorageProvider": "local",
+  "BaseUrl": "http://localhost:5002",
+  "LocalStorage": {
+    "Path": "uploads"
+  },
+  "Azure": {
+    "Storage": {
+      "ContainerName": "uploads"
+    }
   },
   "Logging": {
     "LogLevel": {

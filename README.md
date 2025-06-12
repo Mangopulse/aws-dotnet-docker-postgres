@@ -20,3 +20,15 @@ THe ui project should display the posts cards with photos and a button to upload
 make sure the connection string to be in a file name config.json on the root of the repository
 
 make sure also to create github actions for deployment and a terra form file for aws machine creation 
+tests should be integrtion tests create an empty db create tables schema postgress on the docker and try to create a post and a test to return posts
+
+
+LEts make a web project named front-api (fetch posts), front(nextjs to show posts cards),admin-api(should be also authenticathed jwt token) ,admin(next js to create post and upload media  and call admin-api, authenticathed  and login page)
+
+
+
+Also we need to have an upload project that has and upload controller named storeController 
+
+that recive an photo upload and save it in s3 bucket or azure blob or local file system
+
+Also we need a media project that use imageflow to server images and crop images

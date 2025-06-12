@@ -1,41 +1,132 @@
 version: '3.8'
 
 services:
+  # Legacy API (keeping for backwards compatibility)
   api:
     build:
       context: .
       dockerfile: docker/api.Dockerfile
     ports:
-      - "5000:80"
+      - "5100:80"
     environment:
       - ASPNETCORE_ENVIRONMENT=Development
-      - ConnectionStrings__DefaultConnection=Host=db;Database=dockerx;Username=postgres;Password=postgres
+      - ConnectionStrings__DefaultConnection=Host=db;Database=dockerx_db;Username=postgres;Password=postgres123
       - AWS__Region=us-east-1
-      - AWS__BucketName=dockerx-media
+      - AWS__S3__BucketName=dockerx-media-bucket
     depends_on:
       - db
 
+  # Public API for fetching posts
+  front-api:
+    build:
+      context: .
+      dockerfile: src/FrontApi/Dockerfile
+    ports:
+      - "5000:80"
+    environment:
+      - ASPNETCORE_ENVIRONMENT=Development
+      - ConnectionStrings__DefaultConnection=Host=db;Database=dockerx_db;Username=postgres;Password=postgres123
+    depends_on:
+      - db
+
+  # Admin API with authentication
+  admin-api:
+    build:
+      context: .
+      dockerfile: src/AdminApi/Dockerfile
+    ports:
+      - "5001:80"
+    environment:
+      - ASPNETCORE_ENVIRONMENT=Development
+      - ConnectionStrings__DefaultConnection=Host=db;Database=dockerx_db;Username=postgres;Password=postgres123
+      - JWT__Key=supersecretkey12345678901234567890
+      - JWT__Issuer=DockerX
+      - JWT__Audience=DockerX
+      - AWS__Region=us-east-1
+      - AWS__S3__BucketName=dockerx-media-bucket
+    depends_on:
+      - db
+
+  # Upload service for file management
+  upload:
+    build:
+      context: .
+      dockerfile: src/Upload/Dockerfile
+    ports:
+      - "5002:80"
+    environment:
+      - ASPNETCORE_ENVIRONMENT=Development
+      - StorageProvider=local
+      - BaseUrl=http://upload:80
+      - AWS__Region=us-east-1
+      - AWS__S3__BucketName=dockerx-media-bucket
+    volumes:
+      - upload_data:/app/uploads
+
+  # Media service for image processing
+  media:
+    build:
+      context: .
+      dockerfile: src/Media/Dockerfile
+    ports:
+      - "5003:80"
+    environment:
+      - ASPNETCORE_ENVIRONMENT=Development
+    volumes:
+      - upload_data:/app/uploads
+
+  # Public frontend
+  front:
+    build:
+      context: ./src/front
+      dockerfile: Dockerfile
+    ports:
+      - "3000:3000"
+    environment:
+      - NEXT_PUBLIC_API_URL=http://front-api:80
+    depends_on:
+      - front-api
+
+  # Admin frontend
+  admin:
+    build:
+      context: ./src/admin
+      dockerfile: Dockerfile
+    ports:
+      - "3001:3001"
+    environment:
+      - NEXT_PUBLIC_ADMIN_API_URL=http://admin-api:80
+      - NEXT_PUBLIC_UPLOAD_API_URL=http://upload:80
+      - NEXT_PUBLIC_MEDIA_API_URL=http://media:80
+    depends_on:
+      - admin-api
+      - upload
+      - media
+
+  # Legacy UI (keeping for backwards compatibility)
   ui:
     build:
       context: .
       dockerfile: docker/ui.Dockerfile
     ports:
-      - "3000:3000"
+      - "3100:3000"
     environment:
       - NEXT_PUBLIC_API_URL=http://api:80
     depends_on:
       - api
 
+  # PostgreSQL database
   db:
     image: postgres:15
     environment:
-      - POSTGRES_DB=dockerx
+      - POSTGRES_DB=dockerx_db
       - POSTGRES_USER=postgres
-      - POSTGRES_PASSWORD=postgres
+      - POSTGRES_PASSWORD=postgres123
     ports:
       - "5432:5432"
     volumes:
       - postgres_data:/var/lib/postgresql/data
 
 volumes:
-  postgres_data: 
+  postgres_data:
+  upload_data: 
