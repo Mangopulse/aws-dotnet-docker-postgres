@@ -2,6 +2,7 @@ using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
 using Shared.Interfaces;
 using Shared.Models;
+using Shared.Models.Dtos;
 
 namespace AdminApi.Controllers
 {

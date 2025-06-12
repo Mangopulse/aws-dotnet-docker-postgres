@@ -2,6 +2,7 @@ using System.Data;
 using Dapper;
 using Shared.Data;
 using Shared.Models;
+using Shared.Interfaces;
 
 namespace Shared.Repositories;
 
@@ -57,21 +58,15 @@ public class PostRepository : IPostRepository
     {
         using var connection = _context.CreateConnection();
         var sql = @"
-            UPDATE posts 
-            SET title = @Title,
-                media_id = @MediaId,
-                json_meta = @JsonMeta::jsonb,
-                updated_at = @UpdatedAt
+            UPDATE posts SET title = @Title, media_id = @MediaId, json_meta = @JsonMeta::jsonb
             WHERE id = @Id";
-
         await connection.ExecuteAsync(sql, post);
     }
 
     public async Task DeleteAsync(Guid id)
     {
         using var connection = _context.CreateConnection();
-        await connection.ExecuteAsync(
-            "DELETE FROM posts WHERE id = @Id",
-            new { Id = id });
+        var sql = "DELETE FROM posts WHERE id = @Id";
+        await connection.ExecuteAsync(sql, new { Id = id });
     }
 } 

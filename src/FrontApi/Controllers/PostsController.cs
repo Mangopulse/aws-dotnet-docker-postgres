@@ -69,7 +69,8 @@ namespace FrontApi.Controllers
         {
             try
             {
-                var result = await _postService.GetPagedPostsAsync(page, pageSize);
+                //var result = await _postService.GetAllPostsAsync(page, pageSize);
+                var result = await _postService.GetAllPostsAsync();
                 return Ok(new { success = true, data = result });
             }
             catch (Exception ex)

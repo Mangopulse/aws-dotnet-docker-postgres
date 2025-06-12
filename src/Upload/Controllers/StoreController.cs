@@ -34,7 +34,7 @@ public class StoreController : ControllerBase
                 OriginalFileName = file.FileName,
                 FileUrl = fileUrl,
                 Size = file.Length,
-                StorageProvider = _storageService.GetStorageProvider(),
+                //StorageProvider = _storageService.GetStorageProvider(),
                 UploadedAt = DateTime.UtcNow
             });
         }
@@ -57,7 +57,7 @@ public class StoreController : ControllerBase
         {
             Service = "Upload Service",
             Status = "Healthy",
-            StorageProvider = _storageService.GetStorageProvider(),
+            //StorageProvider = _storageService.GetStorageProvider(),
             Timestamp = DateTime.UtcNow
         });
     }

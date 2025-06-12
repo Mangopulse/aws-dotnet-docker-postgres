@@ -9,7 +9,8 @@ public interface IPostRepository
 {
     Task<IEnumerable<Post>> GetAllAsync();
     Task<Post?> GetByIdAsync(Guid id);
-    Task<Post> CreateAsync(Post post);
-    Task<Post> UpdateAsync(Post post);
+    Task<Post?> GetByPublicIdAsync(int publicId);
+    Task<Guid> CreateAsync(Post post);
+    Task UpdateAsync(Post post);
     Task DeleteAsync(Guid id);
 } 

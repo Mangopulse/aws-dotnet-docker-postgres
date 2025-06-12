@@ -1,7 +1,6 @@
-using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.Configuration;
-using API.Data;
-using API.Repositories;
+using Shared.Data;
+using Shared.Repositories;
 using Shared.Interfaces;
 using Shared.Services;
 using Shared.Models;
@@ -27,13 +26,12 @@ builder.Services.AddCors(options =>
     });
 });
 
-// Add DbContext
-builder.Services.AddDbContext<ApplicationDbContext>(options =>
-    options.UseNpgsql(builder.Configuration.GetConnectionString("DefaultConnection")));
+// Add database context
+builder.Services.AddSingleton<DatabaseContext>();
 
 // Add services
 builder.Services.AddScoped<IPostService, PostService>();
-builder.Services.AddScoped<IStorageService, S3StorageService>();
+builder.Services.AddScoped<IStorageService, StorageService>();
 
 var app = builder.Build();
 

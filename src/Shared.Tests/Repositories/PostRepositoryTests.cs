@@ -2,6 +2,7 @@ using System.Data;
 using Dapper;
 using Microsoft.Extensions.Configuration;
 using Shared.Data;
+using Shared.Interfaces;
 using Shared.Models;
 using Shared.Repositories;
 using Xunit;
