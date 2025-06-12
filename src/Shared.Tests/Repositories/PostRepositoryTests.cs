@@ -8,7 +8,7 @@ using Xunit;
 
 namespace Shared.Tests.Repositories;
 
-public class PostRepositoryTests : IAsyncLifetime
+public class PostRepositoryTests : IDisposable
 {
     private readonly DatabaseContext _context;
     private readonly IPostRepository _repository;
@@ -23,21 +23,18 @@ public class PostRepositoryTests : IAsyncLifetime
         _context = new DatabaseContext(configuration);
         _repository = new PostRepository(_context);
         _connection = _context.CreateConnection();
-    }
-
-    public async Task InitializeAsync()
-    {
+        
         // Create tables
-        var schema = await File.ReadAllTextAsync("../../../Shared/Data/schema.sql");
-        await _connection.ExecuteAsync(schema);
+        var schema = File.ReadAllText("schema.sql");
+        _connection.Execute(schema);
     }
 
-    public async Task DisposeAsync()
+    public void Dispose()
     {
         // Clean up tables
-        await _connection.ExecuteAsync("DROP TABLE IF EXISTS posts CASCADE");
-        await _connection.ExecuteAsync("DROP TABLE IF EXISTS media CASCADE");
-        await _connection.DisposeAsync();
+        _connection.Execute("DROP TABLE IF EXISTS posts CASCADE");
+        _connection.Execute("DROP TABLE IF EXISTS media CASCADE");
+        _connection.Dispose();
     }
 
     [Fact]
@@ -66,6 +63,16 @@ public class PostRepositoryTests : IAsyncLifetime
             media);
 
         var createdId = await _repository.CreateAsync(post);
+
+        // Verify the post was created with the correct ID
+        var createdPost = await _connection.QueryFirstOrDefaultAsync<Post>(
+            "SELECT * FROM posts WHERE id = @Id",
+            new { Id = createdId });
+
+        Assert.NotNull(createdPost);
+        Assert.Equal(post.Id, createdPost.Id);
+
+        // Verify we can retrieve the post through the repository
         var retrievedPost = await _repository.GetByIdAsync(createdId);
 
         // Assert

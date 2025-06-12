@@ -23,9 +23,9 @@ public class PostRepository : IPostRepository
     public async Task<Post?> GetByIdAsync(Guid id)
     {
         using var connection = _context.CreateConnection();
-        return await connection.QueryFirstOrDefaultAsync<Post>(
-            "SELECT * FROM posts WHERE id = @Id",
-            new { Id = id });
+        var sql = "SELECT * FROM posts WHERE id = @Id";
+        var post = await connection.QueryFirstOrDefaultAsync<Post>(sql, new { Id = id });
+        return post;
     }
 
     public async Task<Post?> GetByPublicIdAsync(int publicId)
@@ -38,13 +38,19 @@ public class PostRepository : IPostRepository
 
     public async Task<Guid> CreateAsync(Post post)
     {
+        if (post.Id == Guid.Empty)
+        {
+            post.Id = Guid.NewGuid();
+        }
+
         using var connection = _context.CreateConnection();
         var sql = @"
-            INSERT INTO posts (id, title, media_id, public_id, json_meta, created_at)
-            VALUES (@Id, @Title, @MediaId, @PublicId, @JsonMeta, @CreatedAt)
+            INSERT INTO posts (id, title, media_id, json_meta, created_at)
+            VALUES (@Id, @Title, @MediaId, @JsonMeta::jsonb, @CreatedAt)
             RETURNING id";
 
-        return await connection.QuerySingleAsync<Guid>(sql, post);
+        await connection.ExecuteAsync(sql, post);
+        return post.Id;
     }
 
     public async Task UpdateAsync(Post post)
@@ -54,7 +60,7 @@ public class PostRepository : IPostRepository
             UPDATE posts 
             SET title = @Title,
                 media_id = @MediaId,
-                json_meta = @JsonMeta,
+                json_meta = @JsonMeta::jsonb,
                 updated_at = @UpdatedAt
             WHERE id = @Id";
 

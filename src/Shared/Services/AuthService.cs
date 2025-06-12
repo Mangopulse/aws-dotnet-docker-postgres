@@ -22,29 +22,29 @@ namespace Shared.Services
             _jwtAudience = configuration["Jwt:Audience"] ?? throw new ArgumentNullException("Jwt:Audience is missing");
         }
 
-        public LoginResponse Authenticate(LoginRequest request)
+        public async Task<(bool success, string? token, string? username, DateTime? expiresAt)> AuthenticateAsync(string username, string password)
         {
-            // In a real application, you would validate the user against a database
-            if (request.Username == "admin" && request.Password == "admin123")
+            if (username == "admin" && password == "admin123")
             {
-                var token = GenerateJwtToken(request.Username);
-                return new LoginResponse { Success = true, Token = token };
+                var token = GenerateJwtToken(username);
+                var expiresAt = DateTime.UtcNow.AddHours(1);
+                return (true, token, username, expiresAt);
             }
 
-            return new LoginResponse { Success = false, Error = "Invalid credentials" };
+            return (false, null, null, null);
         }
 
-        public bool ValidateToken(string token)
+        public async Task<(bool valid, string? username)> ValidateTokenAsync(string token)
         {
             if (string.IsNullOrEmpty(token))
-                return false;
+                return (false, null);
 
             var tokenHandler = new JwtSecurityTokenHandler();
             var key = Encoding.ASCII.GetBytes(_jwtKey);
 
             try
             {
-                tokenHandler.ValidateToken(token, new TokenValidationParameters
+                var validationParameters = new TokenValidationParameters
                 {
                     ValidateIssuerSigningKey = true,
                     IssuerSigningKey = new SymmetricSecurityKey(key),
@@ -52,14 +52,21 @@ namespace Shared.Services
                     ValidIssuer = _jwtIssuer,
                     ValidateAudience = true,
                     ValidAudience = _jwtAudience,
+                    ValidateLifetime = true,
                     ClockSkew = TimeSpan.Zero
-                }, out SecurityToken validatedToken);
+                };
 
-                return true;
+                var principal = tokenHandler.ValidateToken(token, validationParameters, out SecurityToken validatedToken);
+                var username = principal.Claims.FirstOrDefault(x => x.Type == "id")?.Value;
+                return (true, username);
+            }
+            catch (SecurityTokenExpiredException)
+            {
+                return (false, null);
             }
             catch
             {
-                return false;
+                return (false, null);
             }
         }
 

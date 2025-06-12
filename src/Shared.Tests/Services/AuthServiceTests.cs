@@ -1,30 +1,28 @@
 using Microsoft.Extensions.Configuration;
-using Microsoft.Extensions.Logging;
 using Moq;
+using Shared.Models;
 using Shared.Services;
 using Xunit;
+using System.IdentityModel.Tokens.Jwt;
+using Microsoft.IdentityModel.Tokens;
+using System.Security.Claims;
+using System.Text;
 
 namespace Shared.Tests.Services;
 
 public class AuthServiceTests
 {
     private readonly Mock<IConfiguration> _mockConfiguration;
-    private readonly Mock<ILogger<AuthService>> _mockLogger;
     private readonly AuthService _authService;
 
     public AuthServiceTests()
     {
         _mockConfiguration = new Mock<IConfiguration>();
-        _mockLogger = new Mock<ILogger<AuthService>>();
+        _mockConfiguration.Setup(x => x["Jwt:Key"]).Returns("your-256-bit-secret-key-here-minimum-32-characters");
+        _mockConfiguration.Setup(x => x["Jwt:Issuer"]).Returns("your-issuer");
+        _mockConfiguration.Setup(x => x["Jwt:Audience"]).Returns("your-audience");
 
-        // Setup default configuration
-        _mockConfiguration.Setup(x => x["Admin:Username"]).Returns("admin");
-        _mockConfiguration.Setup(x => x["Admin:Password"]).Returns("admin123");
-        _mockConfiguration.Setup(x => x["JWT:Key"]).Returns("your-super-secret-jwt-key-that-should-be-at-least-256-bits-long-for-security");
-        _mockConfiguration.Setup(x => x["JWT:Issuer"]).Returns("AdminApi");
-        _mockConfiguration.Setup(x => x["JWT:Audience"]).Returns("AdminApiUsers");
-
-        _authService = new AuthService(_mockConfiguration.Object, _mockLogger.Object);
+        _authService = new AuthService(_mockConfiguration.Object);
     }
 
     [Fact]
@@ -67,10 +65,10 @@ public class AuthServiceTests
     {
         // Arrange
         var username = "admin";
-        var token = _authService.GenerateJwtToken(username);
+        var (_, token, _, _) = await _authService.AuthenticateAsync(username, "admin123");
 
         // Act
-        var (valid, returnedUsername) = await _authService.ValidateTokenAsync(token);
+        var (valid, returnedUsername) = await _authService.ValidateTokenAsync(token!);
 
         // Assert
         Assert.True(valid);
@@ -92,36 +90,54 @@ public class AuthServiceTests
     }
 
     [Fact]
-    public void GenerateJwtToken_WithValidUsername_ReturnsValidToken()
-    {
-        // Arrange
-        var username = "admin";
-
-        // Act
-        var token = _authService.GenerateJwtToken(username);
-
-        // Assert
-        Assert.NotNull(token);
-        Assert.NotEmpty(token);
-        Assert.Contains(".", token); // JWT tokens have two dots
-    }
-
-    [Fact]
     public async Task ValidateTokenAsync_WithExpiredToken_ReturnsFailure()
     {
         // Arrange
         var username = "admin";
-        var token = _authService.GenerateJwtToken(username);
-
-        // Modify configuration to use a very short expiration
-        _mockConfiguration.Setup(x => x["JWT:Key"]).Returns("your-super-secret-jwt-key-that-should-be-at-least-256-bits-long-for-security");
-        var authServiceWithShortExpiry = new AuthService(_mockConfiguration.Object, _mockLogger.Object);
+        var tokenHandler = new JwtSecurityTokenHandler();
+        var key = Encoding.ASCII.GetBytes("your-256-bit-secret-key-here-minimum-32-characters");
+        var now = DateTime.UtcNow;
+        var tokenDescriptor = new SecurityTokenDescriptor
+        {
+            Subject = new ClaimsIdentity(new[] { new Claim("id", username) }),
+            NotBefore = now.AddMinutes(-5),
+            Expires = now.AddMinutes(-1), // Token that expired 1 minute ago
+            Issuer = "your-issuer",
+            Audience = "your-audience",
+            SigningCredentials = new SigningCredentials(new SymmetricSecurityKey(key), SecurityAlgorithms.HmacSha256Signature)
+        };
+        var token = tokenHandler.CreateToken(tokenDescriptor);
+        var expiredToken = tokenHandler.WriteToken(token);
 
         // Act
-        var (valid, returnedUsername) = await authServiceWithShortExpiry.ValidateTokenAsync(token);
+        var (valid, returnedUsername) = await _authService.ValidateTokenAsync(expiredToken);
 
         // Assert
         Assert.False(valid);
         Assert.Null(returnedUsername);
+    }
+
+    [Theory]
+    [InlineData("")]
+    [InlineData("invalid-token")]
+    public async Task ValidateTokenAsync_WithInvalidTokens_ReturnsFailure(string token)
+    {
+        // Act
+        var (valid, username) = await _authService.ValidateTokenAsync(token);
+
+        // Assert
+        Assert.False(valid);
+        Assert.Null(username);
+    }
+
+    [Fact]
+    public async Task ValidateTokenAsync_WithNullToken_ReturnsFailure()
+    {
+        // Act
+        var (valid, username) = await _authService.ValidateTokenAsync(null!);
+
+        // Assert
+        Assert.False(valid);
+        Assert.Null(username);
     }
 } 
