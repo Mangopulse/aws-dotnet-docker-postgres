@@ -1,106 +1,82 @@
 using Microsoft.Extensions.Configuration;
-using Microsoft.Extensions.Logging;
 using Microsoft.IdentityModel.Tokens;
-using Shared.Interfaces;
+using System;
 using System.IdentityModel.Tokens.Jwt;
 using System.Security.Claims;
 using System.Text;
+using Shared.Interfaces;
+using Shared.Models;
 
-namespace Shared.Services;
-
-public class AuthService : IAuthService
+namespace Shared.Services
 {
-    private readonly IConfiguration _configuration;
-    private readonly ILogger<AuthService> _logger;
-
-    public AuthService(IConfiguration configuration, ILogger<AuthService> logger)
+    public class AuthService : IAuthService
     {
-        _configuration = configuration;
-        _logger = logger;
-    }
+        private readonly string _jwtKey;
+        private readonly string _jwtIssuer;
+        private readonly string _jwtAudience;
 
-    public async Task<(bool success, string? token, string? username, DateTime? expiresAt)> AuthenticateAsync(string username, string password)
-    {
-        try
+        public AuthService(IConfiguration configuration)
         {
-            // Simple hardcoded authentication for demo purposes
-            // In production, this should validate against a user database with hashed passwords
-            var adminUsername = _configuration["Admin:Username"] ?? "admin";
-            var adminPassword = _configuration["Admin:Password"] ?? "admin123";
+            _jwtKey = configuration["Jwt:Key"] ?? throw new ArgumentNullException("Jwt:Key is missing");
+            _jwtIssuer = configuration["Jwt:Issuer"] ?? throw new ArgumentNullException("Jwt:Issuer is missing");
+            _jwtAudience = configuration["Jwt:Audience"] ?? throw new ArgumentNullException("Jwt:Audience is missing");
+        }
 
-            if (username != adminUsername || password != adminPassword)
+        public LoginResponse Authenticate(LoginRequest request)
+        {
+            // In a real application, you would validate the user against a database
+            if (request.Username == "admin" && request.Password == "admin123")
             {
-                return (false, null, null, null);
+                var token = GenerateJwtToken(request.Username);
+                return new LoginResponse { Success = true, Token = token };
             }
 
-            var token = GenerateJwtToken(username);
-            var expiresAt = DateTime.UtcNow.AddHours(24);
-
-            return (true, token, username, expiresAt);
+            return new LoginResponse { Success = false, Error = "Invalid credentials" };
         }
-        catch (Exception ex)
+
+        public bool ValidateToken(string token)
         {
-            _logger.LogError(ex, "Error during authentication for user {Username}", username);
-            return (false, null, null, null);
-        }
-    }
+            if (string.IsNullOrEmpty(token))
+                return false;
 
-    public async Task<(bool valid, string? username)> ValidateTokenAsync(string token)
-    {
-        try
+            var tokenHandler = new JwtSecurityTokenHandler();
+            var key = Encoding.ASCII.GetBytes(_jwtKey);
+
+            try
+            {
+                tokenHandler.ValidateToken(token, new TokenValidationParameters
+                {
+                    ValidateIssuerSigningKey = true,
+                    IssuerSigningKey = new SymmetricSecurityKey(key),
+                    ValidateIssuer = true,
+                    ValidIssuer = _jwtIssuer,
+                    ValidateAudience = true,
+                    ValidAudience = _jwtAudience,
+                    ClockSkew = TimeSpan.Zero
+                }, out SecurityToken validatedToken);
+
+                return true;
+            }
+            catch
+            {
+                return false;
+            }
+        }
+
+        private string GenerateJwtToken(string username)
         {
             var tokenHandler = new JwtSecurityTokenHandler();
-            var jwtKey = _configuration["JWT:Key"] ?? "your-super-secret-jwt-key-that-should-be-at-least-256-bits-long-for-security";
-            var key = Encoding.UTF8.GetBytes(jwtKey);
-
-            tokenHandler.ValidateToken(token, new TokenValidationParameters
+            var key = Encoding.ASCII.GetBytes(_jwtKey);
+            var tokenDescriptor = new SecurityTokenDescriptor
             {
-                ValidateIssuerSigningKey = true,
-                IssuerSigningKey = new SymmetricSecurityKey(key),
-                ValidateIssuer = true,
-                ValidIssuer = _configuration["JWT:Issuer"] ?? "AdminApi",
-                ValidateAudience = true,
-                ValidAudience = _configuration["JWT:Audience"] ?? "AdminApiUsers",
-                ClockSkew = TimeSpan.Zero
-            }, out SecurityToken validatedToken);
-
-            var jwtToken = (JwtSecurityToken)validatedToken;
-            var username = jwtToken.Claims.First(x => x.Type == ClaimTypes.Name).Value;
-
-            return (true, username);
+                Subject = new ClaimsIdentity(new[] { new Claim("id", username) }),
+                Expires = DateTime.UtcNow.AddHours(1),
+                Issuer = _jwtIssuer,
+                Audience = _jwtAudience,
+                SigningCredentials = new SigningCredentials(new SymmetricSecurityKey(key), SecurityAlgorithms.HmacSha256Signature)
+            };
+            var token = tokenHandler.CreateToken(tokenDescriptor);
+            return tokenHandler.WriteToken(token);
         }
-        catch (Exception ex)
-        {
-            _logger.LogError(ex, "Error validating token");
-            return (false, null);
-        }
-    }
-
-    public string GenerateJwtToken(string username)
-    {
-        var jwtKey = _configuration["JWT:Key"] ?? "your-super-secret-jwt-key-that-should-be-at-least-256-bits-long-for-security";
-        var jwtIssuer = _configuration["JWT:Issuer"] ?? "AdminApi";
-        var jwtAudience = _configuration["JWT:Audience"] ?? "AdminApiUsers";
-
-        var key = new SymmetricSecurityKey(Encoding.UTF8.GetBytes(jwtKey));
-        var credentials = new SigningCredentials(key, SecurityAlgorithms.HmacSha256);
-
-        var claims = new[]
-        {
-            new Claim(ClaimTypes.Name, username),
-            new Claim(ClaimTypes.Role, "Admin"),
-            new Claim(JwtRegisteredClaimNames.Sub, username),
-            new Claim(JwtRegisteredClaimNames.Jti, Guid.NewGuid().ToString())
-        };
-
-        var token = new JwtSecurityToken(
-            issuer: jwtIssuer,
-            audience: jwtAudience,
-            claims: claims,
-            expires: DateTime.UtcNow.AddHours(24),
-            signingCredentials: credentials
-        );
-
-        return new JwtSecurityTokenHandler().WriteToken(token);
     }
 } 

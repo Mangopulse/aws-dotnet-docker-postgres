@@ -32,3 +32,10 @@ Also we need to have an upload project that has and upload controller named stor
 that recive an photo upload and save it in s3 bucket or azure blob or local file system
 
 Also we need a media project that use imageflow to server images and crop images
+
+
+for image flow 
+https://github.com/imazen/imageflow-server
+
+
+use dapper as an orm not enityframework

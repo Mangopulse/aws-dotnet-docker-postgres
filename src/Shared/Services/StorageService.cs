@@ -1,99 +1,61 @@
+using System;
+using System.IO;
+using System.Threading.Tasks;
+using Amazon.S3;
+using Amazon.S3.Transfer;
 using Microsoft.AspNetCore.Http;
 using Microsoft.Extensions.Configuration;
-using Microsoft.Extensions.Logging;
 using Shared.Interfaces;
-using Shared.Services.Storage;
 
-namespace Shared.Services;
-
-public class StorageService : IStorageService
+namespace Shared.Services
 {
-    private readonly IStorageProvider _storageProvider;
-    private readonly string _storageProviderName;
-    private readonly ILogger<StorageService> _logger;
-
-    public StorageService(
-        IConfiguration configuration,
-        ILogger<StorageService> logger)
+    public class StorageService : IStorageService
     {
-        _storageProviderName = configuration["StorageProvider"] ?? "local";
-        _logger = logger;
+        private readonly IAmazonS3 _s3Client;
+        private readonly string _bucketName;
 
-        _storageProvider = _storageProviderName.ToLower() switch
+        public StorageService(IAmazonS3 s3Client, IConfiguration configuration)
         {
-            "s3" => new S3StorageProvider(
-                new AmazonS3Client(
-                    configuration["AWS:AccessKey"],
-                    configuration["AWS:SecretKey"],
-                    Amazon.RegionEndpoint.GetBySystemName(configuration["AWS:Region"] ?? "us-east-1")),
-                configuration,
-                logger),
-            "azure" => new AzureStorageProvider(
-                new Azure.Storage.Blobs.BlobServiceClient(configuration["Azure:Storage:ConnectionString"]),
-                configuration,
-                logger),
-            _ => new LocalStorageProvider(configuration, logger)
-        };
-    }
+            _s3Client = s3Client;
+            _bucketName = configuration["AWS:S3BucketName"] ?? throw new ArgumentNullException("AWS:S3BucketName is missing from configuration.");
+        }
 
-    public async Task<string> UploadFileAsync(IFormFile file)
-    {
-        try
+        public async Task<string> UploadFileAsync(IFormFile file)
         {
             if (file == null || file.Length == 0)
             {
-                throw new ArgumentException("No file provided");
+                throw new ArgumentException("File is empty.", nameof(file));
             }
 
-            // Validate file type
-            var allowedExtensions = new[] { ".jpg", ".jpeg", ".png", ".gif", ".webp" };
-            var fileExtension = Path.GetExtension(file.FileName).ToLowerInvariant();
-            if (!allowedExtensions.Contains(fileExtension))
+            var key = $"{Guid.NewGuid()}-{file.FileName}";
+            
+            using var memoryStream = new MemoryStream();
+            await file.CopyToAsync(memoryStream);
+
+            var uploadRequest = new TransferUtilityUploadRequest
             {
-                throw new ArgumentException("Invalid file type. Only JPEG, PNG, GIF, and WebP files are allowed.");
-            }
+                InputStream = memoryStream,
+                Key = key,
+                BucketName = _bucketName,
+                ContentType = file.ContentType
+            };
 
-            // Validate file size (max 10MB)
-            if (file.Length > 10 * 1024 * 1024)
+            var transferUtility = new TransferUtility(_s3Client);
+            await transferUtility.UploadAsync(uploadRequest);
+
+            return $"https://{_bucketName}.s3.amazonaws.com/{key}";
+        }
+
+        public async Task DeleteFileAsync(string fileUrl)
+        {
+            if (string.IsNullOrEmpty(fileUrl))
             {
-                throw new ArgumentException("File size exceeds 10MB limit");
+                throw new ArgumentException("File URL is empty.", nameof(fileUrl));
             }
 
-            var fileName = $"{Guid.NewGuid()}{fileExtension}";
-            return await _storageProvider.UploadFileAsync(file, fileName);
-        }
-        catch (Exception ex)
-        {
-            _logger.LogError(ex, "Error uploading file");
-            throw;
+            var key = Path.GetFileName(new Uri(fileUrl).AbsolutePath);
+
+            await _s3Client.DeleteObjectAsync(_bucketName, key);
         }
     }
-
-    public async Task DeleteFileAsync(string filePath)
-    {
-        try
-        {
-            await _storageProvider.DeleteFileAsync(filePath);
-        }
-        catch (Exception ex)
-        {
-            _logger.LogError(ex, "Error deleting file");
-            throw;
-        }
-    }
-
-    public async Task<byte[]> GetFileAsync(string filePath)
-    {
-        try
-        {
-            return await _storageProvider.GetFileAsync(filePath);
-        }
-        catch (Exception ex)
-        {
-            _logger.LogError(ex, "Error getting file");
-            throw;
-        }
-    }
-
-    public string GetStorageProvider() => _storageProviderName;
 } 
