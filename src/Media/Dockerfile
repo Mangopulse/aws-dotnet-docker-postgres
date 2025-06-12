@@ -11,6 +11,7 @@ RUN apt-get update && apt-get install -y \
 
 FROM mcr.microsoft.com/dotnet/sdk:8.0 AS build
 WORKDIR /src
+COPY ["src/Shared/Shared.csproj", "src/Shared/"]
 COPY ["src/Media/Media.csproj", "src/Media/"]
 RUN dotnet restore "src/Media/Media.csproj"
 COPY . .

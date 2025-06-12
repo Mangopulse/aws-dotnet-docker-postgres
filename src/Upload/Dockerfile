@@ -5,6 +5,7 @@ EXPOSE 443
 
 FROM mcr.microsoft.com/dotnet/sdk:8.0 AS build
 WORKDIR /src
+COPY ["src/Shared/Shared.csproj", "src/Shared/"]
 COPY ["src/Upload/Upload.csproj", "src/Upload/"]
 RUN dotnet restore "src/Upload/Upload.csproj"
 COPY . .
