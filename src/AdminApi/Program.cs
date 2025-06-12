@@ -8,6 +8,8 @@ using API.Repositories;
 using API.Services;
 using Shared.Interfaces;
 using Amazon.S3;
+using Shared.Services;
+using Shared.Models;
 
 var builder = WebApplication.CreateBuilder(args);
 
@@ -27,22 +29,19 @@ builder.Services.AddSingleton<IAmazonS3, AmazonS3Client>();
 builder.Services.AddScoped<S3Service>();
 
 // Add JWT Authentication
-var jwtKey = builder.Configuration["JWT:Key"] ?? "your-super-secret-jwt-key-that-should-be-at-least-256-bits-long-for-security";
-var jwtIssuer = builder.Configuration["JWT:Issuer"] ?? "AdminApi";
-var jwtAudience = builder.Configuration["JWT:Audience"] ?? "AdminApiUsers";
-
 builder.Services.AddAuthentication(JwtBearerDefaults.AuthenticationScheme)
     .AddJwtBearer(options =>
     {
         options.TokenValidationParameters = new TokenValidationParameters
         {
-            ValidateIssuer = true,
-            ValidateAudience = true,
-            ValidateLifetime = true,
             ValidateIssuerSigningKey = true,
-            ValidIssuer = jwtIssuer,
-            ValidAudience = jwtAudience,
-            IssuerSigningKey = new SymmetricSecurityKey(Encoding.UTF8.GetBytes(jwtKey))
+            IssuerSigningKey = new SymmetricSecurityKey(Encoding.UTF8.GetBytes(
+                builder.Configuration["JWT:Key"] ?? "your-super-secret-jwt-key-that-should-be-at-least-256-bits-long-for-security")),
+            ValidateIssuer = true,
+            ValidIssuer = builder.Configuration["JWT:Issuer"] ?? "AdminApi",
+            ValidateAudience = true,
+            ValidAudience = builder.Configuration["JWT:Audience"] ?? "AdminApiUsers",
+            ClockSkew = TimeSpan.Zero
         };
     });
 
@@ -54,12 +53,11 @@ builder.Services.AddControllers();
 // Add CORS
 builder.Services.AddCors(options =>
 {
-    options.AddPolicy("AllowAdmin", policy =>
+    options.AddDefaultPolicy(policy =>
     {
-        policy.WithOrigins("http://localhost:3001", "http://localhost:3002") // Admin Next.js dev servers
-              .AllowAnyMethod()
+        policy.WithOrigins("http://localhost:3000", "http://localhost:3001")
               .AllowAnyHeader()
-              .AllowCredentials();
+              .AllowAnyMethod();
     });
 });
 
@@ -95,6 +93,11 @@ builder.Services.AddSwaggerGen(c =>
     });
 });
 
+// Add services
+builder.Services.AddScoped<IPostService, PostService>();
+builder.Services.AddScoped<IStorageService, S3StorageService>();
+builder.Services.AddScoped<IAuthService, AuthService>();
+
 var app = builder.Build();
 
 // Configure the HTTP request pipeline.
@@ -107,7 +110,7 @@ if (app.Environment.IsDevelopment())
 app.UseHttpsRedirection();
 
 // Use CORS
-app.UseCors("AllowAdmin");
+app.UseCors();
 
 // Use Authentication and Authorization
 app.UseAuthentication();

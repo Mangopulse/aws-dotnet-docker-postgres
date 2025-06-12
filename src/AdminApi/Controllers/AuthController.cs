@@ -1,8 +1,6 @@
 using Microsoft.AspNetCore.Mvc;
-using Microsoft.IdentityModel.Tokens;
-using System.IdentityModel.Tokens.Jwt;
-using System.Security.Claims;
-using System.Text;
+using Shared.Interfaces;
+using Shared.Services;
 
 namespace AdminApi.Controllers
 {
@@ -10,37 +8,32 @@ namespace AdminApi.Controllers
     [Route("api/[controller]")]
     public class AuthController : ControllerBase
     {
-        private readonly IConfiguration _configuration;
+        private readonly IAuthService _authService;
         private readonly ILogger<AuthController> _logger;
 
-        public AuthController(IConfiguration configuration, ILogger<AuthController> logger)
+        public AuthController(IAuthService authService, ILogger<AuthController> logger)
         {
-            _configuration = configuration;
+            _authService = authService;
             _logger = logger;
         }
 
         [HttpPost("login")]
-        public IActionResult Login([FromBody] LoginRequest request)
+        public async Task<IActionResult> Login([FromBody] LoginRequest request)
         {
             try
             {
-                // Simple hardcoded authentication for demo purposes
-                // In production, this should validate against a user database with hashed passwords
-                var adminUsername = _configuration["Admin:Username"] ?? "admin";
-                var adminPassword = _configuration["Admin:Password"] ?? "admin123";
+                var (success, token, username, expiresAt) = await _authService.AuthenticateAsync(request.Username, request.Password);
 
-                if (request.Username != adminUsername || request.Password != adminPassword)
+                if (!success)
                 {
                     return Unauthorized(new { message = "Invalid username or password" });
                 }
 
-                var token = GenerateJwtToken(request.Username);
-                
                 return Ok(new LoginResponse
                 {
-                    Token = token,
-                    Username = request.Username,
-                    ExpiresAt = DateTime.UtcNow.AddHours(24)
+                    Token = token!,
+                    Username = username!,
+                    ExpiresAt = expiresAt!.Value
                 });
             }
             catch (Exception ex)
@@ -51,39 +44,25 @@ namespace AdminApi.Controllers
         }
 
         [HttpPost("validate")]
-        public IActionResult ValidateToken()
+        public async Task<IActionResult> ValidateToken()
         {
-            // If the request reaches here, the JWT middleware has already validated the token
-            var username = User.FindFirst(ClaimTypes.Name)?.Value;
-            return Ok(new { valid = true, username });
-        }
-
-        private string GenerateJwtToken(string username)
-        {
-            var jwtKey = _configuration["JWT:Key"] ?? "your-super-secret-jwt-key-that-should-be-at-least-256-bits-long-for-security";
-            var jwtIssuer = _configuration["JWT:Issuer"] ?? "AdminApi";
-            var jwtAudience = _configuration["JWT:Audience"] ?? "AdminApiUsers";
-
-            var key = new SymmetricSecurityKey(Encoding.UTF8.GetBytes(jwtKey));
-            var credentials = new SigningCredentials(key, SecurityAlgorithms.HmacSha256);
-
-            var claims = new[]
+            try
             {
-                new Claim(ClaimTypes.Name, username),
-                new Claim(ClaimTypes.Role, "Admin"),
-                new Claim(JwtRegisteredClaimNames.Sub, username),
-                new Claim(JwtRegisteredClaimNames.Jti, Guid.NewGuid().ToString())
-            };
+                var token = Request.Headers["Authorization"].ToString().Replace("Bearer ", "");
+                var (valid, username) = await _authService.ValidateTokenAsync(token);
 
-            var token = new JwtSecurityToken(
-                issuer: jwtIssuer,
-                audience: jwtAudience,
-                claims: claims,
-                expires: DateTime.UtcNow.AddHours(24),
-                signingCredentials: credentials
-            );
+                if (!valid)
+                {
+                    return Unauthorized(new { message = "Invalid token" });
+                }
 
-            return new JwtSecurityTokenHandler().WriteToken(token);
+                return Ok(new { valid = true, username });
+            }
+            catch (Exception ex)
+            {
+                _logger.LogError(ex, "Error validating token");
+                return StatusCode(500, new { message = "Internal server error during token validation" });
+            }
         }
     }
 
