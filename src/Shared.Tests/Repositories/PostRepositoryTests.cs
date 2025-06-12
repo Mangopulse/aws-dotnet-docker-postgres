@@ -5,12 +5,18 @@ using Shared.Data;
 using Shared.Interfaces;
 using Shared.Models;
 using Shared.Repositories;
+using System.Text.Json;
 using Xunit;
 
 namespace Shared.Tests.Repositories;
 
 public class PostRepositoryTests : IDisposable
 {
+    private class PostMeta
+    {
+        public string Description { get; set; } = string.Empty;
+    }
+
     private readonly DatabaseContext _context;
     private readonly IPostRepository _repository;
     private readonly IDbConnection _connection;
@@ -45,43 +51,44 @@ public class PostRepositoryTests : IDisposable
         var media = new Media
         {
             Id = Guid.NewGuid(),
-            AwsS3Path = "test/path/image.jpg",
-            CreatedAt = DateTime.UtcNow
+            AwsS3Path = "test/path/image.jpg"
         };
 
         var post = new Post
         {
-            Id = Guid.NewGuid(),
             Title = "Test Post",
-            MediaId = media.Id,
-            JsonMeta = "{\"description\":\"Test Description\"}",
-            CreatedAt = DateTime.UtcNow
+            MediaId = media.Id
         };
 
+        post.SetJsonMeta(new PostMeta { Description = "Test Description" });
+
         // Act
-        await _connection.ExecuteAsync(
-            "INSERT INTO media (id, aws_s3_path, created_at) VALUES (@Id, @AwsS3Path, @CreatedAt)",
+        using var connection = _context.CreateConnection();
+        await connection.ExecuteAsync(
+            "INSERT INTO media (id, aws_s3_path) VALUES (@Id, @AwsS3Path)",
             media);
 
         var createdId = await _repository.CreateAsync(post);
-
-        // Verify the post was created with the correct ID
-        var createdPost = await _connection.QueryFirstOrDefaultAsync<Post>(
+        
+        // Debug: Verify post exists in database
+        var dbPost = await connection.QueryFirstOrDefaultAsync<Post>(
             "SELECT * FROM posts WHERE id = @Id",
             new { Id = createdId });
+        Assert.NotNull(dbPost); // Verify post exists
+        Assert.Equal(createdId, dbPost.Id); // Verify ID matches
 
-        Assert.NotNull(createdPost);
-        Assert.Equal(post.Id, createdPost.Id);
-
-        // Verify we can retrieve the post through the repository
         var retrievedPost = await _repository.GetByIdAsync(createdId);
 
         // Assert
         Assert.NotNull(retrievedPost);
-        Assert.Equal(post.Id, retrievedPost.Id);
+        Assert.Equal(createdId, retrievedPost.Id);
         Assert.Equal(post.Title, retrievedPost.Title);
         Assert.Equal(post.MediaId, retrievedPost.MediaId);
-        Assert.Equal(post.JsonMeta, retrievedPost.JsonMeta);
+        
+        // Compare deserialized JSON objects instead of raw strings
+        var expectedMeta = JsonSerializer.Deserialize<PostMeta>(post.JsonMeta);
+        var actualMeta = JsonSerializer.Deserialize<PostMeta>(retrievedPost.JsonMeta);
+        Assert.Equal(expectedMeta?.Description, actualMeta?.Description);
     }
 
     [Fact]

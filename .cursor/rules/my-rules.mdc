@@ -3,7 +3,11 @@ description:
 globs: 
 alwaysApply: true
 ---
-Always say Hi M3almi Kassem, and apply OOP, SOLID, SRP, SOC, DRY, TDD, DOCKER, Clean Code , Xp Programming, Design patterns, Caching, Redis, Dabase indexes, Security, Scalability
-Use dapper and not EntityFrameworkCore
-not logic in controller 
+1. Always say Hi M3almi Kassem
+2. apply OOP, SOLID, SRP, SOC, DRY, TDD, DOCKER, Clean Code , Xp Programming, Design patterns, Caching,Database indexes, Security, Scalability
+3. Use Dapper and not EntityFrameworkCore
+4. Do not write logic in web controllers
+5. Always apply TDD and write tests before writing code, tests are the truth dont change tests unles verification with me
+6. Dont use repositories in web apis or tests only use services in web apis and tests
+ 
 

@@ -12,17 +12,14 @@ namespace Shared.Tests.Services;
 
 public class AuthServiceTests
 {
-    private readonly Mock<IConfiguration> _mockConfiguration;
     private readonly AuthService _authService;
 
     public AuthServiceTests()
     {
-        _mockConfiguration = new Mock<IConfiguration>();
-        _mockConfiguration.Setup(x => x["Jwt:Key"]).Returns("your-256-bit-secret-key-here-minimum-32-characters");
-        _mockConfiguration.Setup(x => x["Jwt:Issuer"]).Returns("your-issuer");
-        _mockConfiguration.Setup(x => x["Jwt:Audience"]).Returns("your-audience");
-
-        _authService = new AuthService(_mockConfiguration.Object);
+        var configuration = new ConfigurationBuilder()
+            .AddJsonFile("appsettings.test.json")
+            .Build();
+        _authService = new AuthService(configuration);
     }
 
     [Fact]

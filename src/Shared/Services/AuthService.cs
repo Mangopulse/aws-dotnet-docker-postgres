@@ -11,22 +11,18 @@ namespace Shared.Services
 {
     public class AuthService : IAuthService
     {
-        private readonly string _jwtKey;
-        private readonly string _jwtIssuer;
-        private readonly string _jwtAudience;
+        private readonly IConfiguration _configuration;
 
         public AuthService(IConfiguration configuration)
         {
-            _jwtKey = configuration["Jwt:Key"] ?? throw new ArgumentNullException("Jwt:Key is missing");
-            _jwtIssuer = configuration["Jwt:Issuer"] ?? throw new ArgumentNullException("Jwt:Issuer is missing");
-            _jwtAudience = configuration["Jwt:Audience"] ?? throw new ArgumentNullException("Jwt:Audience is missing");
+            _configuration = configuration;
         }
 
         public async Task<(bool success, string? token, string? username, DateTime? expiresAt)> AuthenticateAsync(string username, string password)
         {
             if (username == "admin" && password == "admin123")
             {
-                var token = GenerateJwtToken(username);
+                var token = GenerateJwtToken(username, username);
                 var expiresAt = DateTime.UtcNow.AddHours(1);
                 return (true, token, username, expiresAt);
             }
@@ -40,24 +36,22 @@ namespace Shared.Services
                 return (false, null);
 
             var tokenHandler = new JwtSecurityTokenHandler();
-            var key = Encoding.ASCII.GetBytes(_jwtKey);
+            var key = Encoding.UTF8.GetBytes(_configuration["JWT:Key"] ?? throw new InvalidOperationException("JWT:Key is not configured"));
 
             try
             {
-                var validationParameters = new TokenValidationParameters
+                var principal = tokenHandler.ValidateToken(token, new TokenValidationParameters
                 {
                     ValidateIssuerSigningKey = true,
                     IssuerSigningKey = new SymmetricSecurityKey(key),
                     ValidateIssuer = true,
-                    ValidIssuer = _jwtIssuer,
+                    ValidIssuer = _configuration["JWT:Issuer"],
                     ValidateAudience = true,
-                    ValidAudience = _jwtAudience,
-                    ValidateLifetime = true,
+                    ValidAudience = _configuration["JWT:Audience"],
                     ClockSkew = TimeSpan.Zero
-                };
+                }, out _);
 
-                var principal = tokenHandler.ValidateToken(token, validationParameters, out SecurityToken validatedToken);
-                var username = principal.Claims.FirstOrDefault(x => x.Type == "id")?.Value;
+                var username = principal?.Claims.FirstOrDefault(x => x.Type == ClaimTypes.Name)?.Value;
                 return (true, username);
             }
             catch (SecurityTokenExpiredException)
@@ -70,20 +64,53 @@ namespace Shared.Services
             }
         }
 
-        private string GenerateJwtToken(string username)
+        public string GenerateJwtToken(string userId, string username)
+        {
+            var key = new SymmetricSecurityKey(Encoding.UTF8.GetBytes(
+                _configuration["JWT:Key"] ?? throw new InvalidOperationException("JWT:Key is not configured")));
+            var credentials = new SigningCredentials(key, SecurityAlgorithms.HmacSha256);
+
+            var claims = new[]
+            {
+                new Claim(ClaimTypes.NameIdentifier, userId),
+                new Claim(ClaimTypes.Name, username)
+            };
+
+            var token = new JwtSecurityToken(
+                issuer: _configuration["JWT:Issuer"],
+                audience: _configuration["JWT:Audience"],
+                claims: claims,
+                expires: DateTime.UtcNow.AddHours(24),
+                signingCredentials: credentials
+            );
+
+            return new JwtSecurityTokenHandler().WriteToken(token);
+        }
+
+        public bool ValidateToken(string token)
         {
             var tokenHandler = new JwtSecurityTokenHandler();
-            var key = Encoding.ASCII.GetBytes(_jwtKey);
-            var tokenDescriptor = new SecurityTokenDescriptor
+            var key = Encoding.UTF8.GetBytes(_configuration["JWT:Key"] ?? throw new InvalidOperationException("JWT:Key is not configured"));
+
+            try
             {
-                Subject = new ClaimsIdentity(new[] { new Claim("id", username) }),
-                Expires = DateTime.UtcNow.AddHours(1),
-                Issuer = _jwtIssuer,
-                Audience = _jwtAudience,
-                SigningCredentials = new SigningCredentials(new SymmetricSecurityKey(key), SecurityAlgorithms.HmacSha256Signature)
-            };
-            var token = tokenHandler.CreateToken(tokenDescriptor);
-            return tokenHandler.WriteToken(token);
+                var principal = tokenHandler.ValidateToken(token, new TokenValidationParameters
+                {
+                    ValidateIssuerSigningKey = true,
+                    IssuerSigningKey = new SymmetricSecurityKey(key),
+                    ValidateIssuer = true,
+                    ValidIssuer = _configuration["JWT:Issuer"],
+                    ValidateAudience = true,
+                    ValidAudience = _configuration["JWT:Audience"],
+                    ClockSkew = TimeSpan.Zero
+                }, out _);
+
+                return principal != null;
+            }
+            catch
+            {
+                return false;
+            }
         }
     }
 } 

@@ -62,13 +62,17 @@ public class PostService : IPostService
         var post = new Post
         {
             Title = createPostDto.Title,
-            MediaId = createPostDto.MediaId.Value,
+            MediaId = createPostDto.MediaId ?? null,
             JsonMeta = createPostDto.JsonMeta,
             CreatedAt = DateTime.UtcNow
         };
 
         var id = await _postRepository.CreateAsync(post);
-        return await GetPostByIdAsync(id) ?? throw new InvalidOperationException("Failed to create post");
+        var createdPost = await GetPostByIdAsync(id);
+        if (createdPost == null)
+            throw new InvalidOperationException("Failed to create post");
+            
+        return createdPost;
     }
 
     public async Task<PostDto> UpdatePostAsync(Guid id, UpdatePostDto updatePostDto)
@@ -78,12 +82,15 @@ public class PostService : IPostService
             throw new KeyNotFoundException($"Post with ID {id} not found");
 
         post.Title = updatePostDto.Title;
-        if (updatePostDto.MediaId.HasValue)
-            post.MediaId = updatePostDto.MediaId!.Value;
+        post.MediaId = updatePostDto.MediaId;
         post.JsonMeta = updatePostDto.JsonMeta;
 
         await _postRepository.UpdateAsync(post);
-        return await GetPostByIdAsync(id) ?? throw new InvalidOperationException("Failed to update post");
+        var updatedPost = await GetPostByIdAsync(id);
+        if (updatedPost == null)
+            throw new InvalidOperationException("Failed to update post");
+            
+        return updatedPost;
     }
 
     public async Task DeletePostAsync(Guid id)
